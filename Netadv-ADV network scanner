@@ -1,0 +1,59 @@
+import socket
+import ipaddress
+from concurrent.futures import ThreadPoolExecutor
+
+# Function to check if a host is reachable
+def is_host_reachable(ip):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)  # Set timeout for the connection attempt
+            s.connect((ip, 80))  # Attempt to connect to port 80 (HTTP)
+        return True
+    except (socket.timeout, ConnectionRefusedError):
+        return False
+
+# Function to check if a specific port is open on a host
+def is_port_open(ip, port):
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)  # Set timeout for the connection attempt
+            s.connect((ip, port))
+        return True
+    except (socket.timeout, ConnectionRefusedError):
+        return False
+
+def network_scanner(ip_range, ports):
+    ip_net = ipaddress.IPv4Network(ip_range)
+    print(f"Scanning network: {ip_net}")
+
+    reachable_hosts = []
+    open_ports = {}
+
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(is_host_reachable, str(ip)) for ip in ip_net.hosts()]
+        for future in futures:
+            ip = future.result()
+            if ip:
+                reachable_hosts.append(ip)
+
+    for host in reachable_hosts:
+        open_ports[host] = []
+        for port in ports:
+            if is_port_open(host, port):
+                open_ports[host].append(port)
+
+    print("\nReachable hosts:")
+    for host in reachable_hosts:
+        print(f"- {host}")
+
+    print("\nOpen ports:")
+    for host, ports in open_ports.items():
+        if ports:
+            print(f"- {host}: {', '.join(map(str, ports))}")
+        else:
+            print(f"- {host}: No open ports")
+
+if __name__ == "__main__":
+    ip_range = input("Enter the IP range to scan (e.g., 192.168.1.0/24): ")
+    ports = [int(port) for port in input("Enter the ports to scan (separated by commas): ").split(",")]
+    network_scanner(ip_range, ports)
